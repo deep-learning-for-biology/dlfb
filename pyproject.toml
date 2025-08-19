@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlfb"
+description = "Companion Library for Deep Learning for Biology"
+requires-python = ">=3.10"  # NOTE: relaxed this as some colab envs can differ
+authors = [
+  {name = "Charles Ravarani", email = "c.ravarani@gmail.com"},
+  {name = "Natasha Latysheva", email = "nslatysheva@gmail.com"},
+]
+version = "0.1.1"
+
+[project.scripts]
+dlfb-provision = "dlfb.provision:app"
+
+[tool.setuptools.packages.find]
+where = ["src/"]
+
+[tool.uv.pip]
+# NOTE: pytorch requires special attention when installing with uv
+#       see https://docs.astral.sh/uv/guides/integration/pytorch/#using-uv-with-pytorch
+extra-index-url = [
+  "https://storage.googleapis.com/jax-releases/jax_releases.html",
+  "https://download.pytorch.org/whl/cpu"
+]

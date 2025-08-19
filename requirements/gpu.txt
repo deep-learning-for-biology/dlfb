@@ -1,0 +1,2 @@
+jax-cuda12-pjrt==0.5.1
+jax-cuda12-plugin==0.5.1
