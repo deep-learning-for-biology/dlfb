@@ -22,3 +22,4 @@ pandas-stubs==2.2.3.250527
 types-seaborn==0.13.2.20250516
 types-networkx==3.5.0.20250610
 scipy-stubs==1.15.3.0
+parfive==2.2.0

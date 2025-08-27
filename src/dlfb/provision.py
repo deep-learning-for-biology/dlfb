@@ -1,12 +1,10 @@
 import os
-import textwrap
+from typing import List, Tuple
+from urllib.parse import urljoin
 
-import ipinfo
+from parfive import Downloader, SessionConfig
+import requests
 import typer
-from google.cloud.storage import Client, transfer_manager
-
-from dlfb.log import log
-from dlfb.utils import mkdir_p
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -17,95 +15,57 @@ def cli_provision_assets(
   chapter: str = typer.Option(
     ..., help="Name of the chapter dataset to download."
   ),
-  bucket_name: str = typer.Option(
-    "dlfb-assets", help="Name of public bucket hosting datasets."
+  base_url: str = typer.Option(
+    "https://deep-learning-for-biology.com",
+    help="Public URL where data is hosted."
   ),
   destination: str = typer.Option(
     "/content/assets",
-    help="Destination of the dataset download (note trailing slash).",
+    help="Destination of the dataset download.",
   ),
   models: bool = typer.Option(
     True, help="Whether to download pretrained models."
   ),
-  workers: int = typer.Option(
-    4, help="Number of files to download concurrently."
-  ),
-  chunk_size: int = typer.Option(
-    512 * 1024 * 1024, help="Chunk size of larger file downloads (512MB)."
+  chunk: int = typer.Option(
+    256 * 1024 * 1024, help="Chunk size of larger file downloads."
   ),
 ):
   """Download the required dataset and models for a chapter."""
-  provision_assets(
-    chapter, bucket_name, destination, models, workers, chunk_size
+  provision_assets(chapter, base_url, destination, models, chunk)
+
+
+def provision_assets(chapter, base_url, destination, models, chunk) -> None:
+  sized_prefixes = get_sized_prefixes(base_url, chapter, models)
+  dl_small = Downloader(
+    max_conn=64,
+    max_splits=1,
+    progress=True,
+    config=SessionConfig(file_progress=False)
   )
+  dl_big = Downloader(max_conn=4, max_splits=8, progress=True)
+  for size, prefix in sized_prefixes:
+    url = urljoin(base_url, prefix)
+    dest = os.path.dirname(os.path.join(destination, prefix))
+    os.makedirs(dest, exist_ok=True)
+    if size <= chunk:
+      dl_small.enqueue_file(url=url, path=dest)
+    else:
+        dl_big.enqueue_file(url=url, path=dest)
+  if dl_small.queued_downloads:
+    dl_small.download()
+  if dl_big.queued_downloads:
+    dl_big.download()
 
 
-def provision_assets(
-  chapter, bucket_name, destination, models, workers, chunk_size
-) -> None:
-  warn_about_slow_transfers()
-  storage_client = Client()
-  bucket = storage_client.bucket(bucket_name)
-  provision_datasets(chapter, bucket, destination, workers, chunk_size)
-  if models:
-    provision_models(chapter, bucket, destination, workers)
-
-
-def warn_about_slow_transfers():
-  # NOTE: inspired by https://github.com/googlecolab/colabtools/issues/1722
-  client_details = ipinfo.getHandler().getDetails()
-  if client_details.country != "UK":
-    log.warning(
-      textwrap.dedent(
-        f"""
-        Your currently allocated Google Colab VM is not located in the same
-        region as where the datasets are stored. This usually means that data
-        access will be substantially slower (~20 min up from ~5 min). If
-        possible, reset your runtime in the menu to request a new VM and try
-        again or grab a coffee and read ahead.
-
-        Current location: {client_details.city} ({client_details.country_name})
-        """
-      )
-    )
-
-
-def provision_datasets(chapter, bucket, destination, workers, chunk_size):
-  blobs = bucket.list_blobs(prefix=f"{chapter}/datasets")
-  match chapter:
-    case "localization":
-      # NOTE: this chapter has a few large files
-      download_large_files_from_gcs(blobs, destination, workers, chunk_size)
-    case _:
-      download_many_files_from_gcs(blobs, bucket, destination, workers)
-
-
-def provision_models(chapter, bucket, destination, workers):
-  blobs = bucket.list_blobs(prefix=f"{chapter}/models")
-  download_many_files_from_gcs(blobs, bucket, destination, workers)
-
-
-def download_large_files_from_gcs(
-  blobs, destination: str, workers: int, chunk_size: int
-):
-  # NOTE see: https://cloud.google.com/storage/docs/sliced-object-downloads
-  for blob in blobs:
-    filename = f"{destination}/{blob.name}"
-    if not os.path.exists(filename):
-      mkdir_p(os.path.dirname(filename))
-      transfer_manager.download_chunks_concurrently(
-        blob,
-        filename,
-        chunk_size=chunk_size,
-        max_workers=workers,
-      )
-
-
-def download_many_files_from_gcs(blobs, bucket, destination: str, workers: int):
-  transfer_manager.download_many_to_path(
-    bucket,
-    [blob.name for blob in blobs],
-    destination_directory=f"{destination}/",
-    max_workers=workers,
-    skip_if_exists=True,
-  )
+def get_sized_prefixes(base_url: str, chapter: str, models: bool) -> List[Tuple[int, str]]:
+  r = requests.get(urljoin(base_url, "urls.txt"), timeout=60)
+  r.raise_for_status()
+  sized_prefixes: List[Tuple[int, str]] = []
+  for raw in r.text.splitlines():
+    line = raw.strip()
+    parts = line.split(None, 1)
+    size, prefix = int(parts[0]), parts[1]
+    c, k, _ = prefix.split("/", 2)
+    if c == chapter and (k == "datasets" or (models and k == "models")):
+      sized_prefixes.append((size, prefix))
+  return sized_prefixes
