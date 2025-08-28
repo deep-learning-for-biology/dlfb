@@ -16,7 +16,7 @@ def cli_provision_assets(
     ..., help="Name of the chapter dataset to download."
   ),
   base_url: str = typer.Option(
-    "https://deep-learning-for-biology.com",
+    "https://assets.deep-learning-for-biology.com",
     help="Public URL where data is hosted."
   ),
   destination: str = typer.Option(
