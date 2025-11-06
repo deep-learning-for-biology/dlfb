@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from typing import List, Tuple
 from urllib.parse import urljoin
 
@@ -7,12 +8,20 @@ import requests
 import typer
 
 
+class Chapter(str, Enum):
+  proteins = "proteins"
+  dna = "dna"
+  graphs = "graphs"
+  cancer = "cancer"
+  localization = "localization"
+
+
 app = typer.Typer(no_args_is_help=True)
 
 
 @app.command()
 def cli_provision_assets(
-  chapter: str = typer.Option(
+  chapter: Chapter = typer.Option(
     ..., help="Name of the chapter dataset to download."
   ),
   base_url: str = typer.Option(
