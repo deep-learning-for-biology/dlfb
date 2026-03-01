@@ -10,6 +10,9 @@ def assets(subdir: str | None = None) -> str:
 
 
 def ensure_context() -> None:
+  if "ASSETS_DIR" in os.environ:
+      return
+
   context = detect_context()
   assets_dir = {
     "local": "/content/drive/MyDrive/dlfb/assets",
