@@ -6,3 +6,4 @@ tensorflow_datasets==4.9.8
 tensorflow==2.19.0
 torch==2.6.0
 torchvision==0.21.0
+transformers==4.49.0
