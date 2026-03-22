@@ -79,12 +79,8 @@ class ConvModelV2(nn.Module):
     x = nn.Conv(
       features=self.conv_filters, kernel_size=self.kernel_size, padding="SAME"
     )(x)
-    # NOTE: The nn.BatchNorm should come before nn.gelu to have the same setup
-    #       as the first layer (see above). In a future release this will be
-    #       updated.
-    #       -> https://github.com/orgs/deep-learning-for-biology/discussions/10
-    x = nn.gelu(x)
     x = nn.BatchNorm(use_running_average=not is_training)(x)
+    x = nn.gelu(x)
     x = nn.max_pool(x, window_shape=(2,), strides=(2,))
 
     # Flatten the values before passing them to the dense layers.
